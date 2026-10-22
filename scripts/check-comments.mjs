@@ -78,6 +78,9 @@ const allowed = new Map([
     "// spoofed there. On any other runtime the header is client-controlled,",
     "// so ignore it rather than trusting it for throttling.",
   ]],
+  ["src/worker/lib/share-link.ts", [
+    "/** Inserts or updates the share row, retrying with a fresh slug when the generated one is taken. */",
+  ]],
   ["src/worker/mcp/ai-search.ts", [
     "/**\n * Private AI semantic search for the MCP module.\n *\n * Notes are embedded with Workers AI (`@cf/baai/bge-m3`, 1024 dims,\n * multilingual) and the vectors live in D1 — no public query endpoint, one\n * index per account. Content changes are queued and drained in the\n * background; when the AI binding is missing or the model call fails the\n * feature degrades to plain lexical search instead of failing (the old\n * behavior that surfaced as HTTP 503s).\n */",
     "// Stored in app_meta instead of a column on mcp_preferences: D1 does not",

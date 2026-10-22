@@ -11,7 +11,8 @@ import { runBackup } from '../backup/engine'
 import type { Env } from '../env'
 import { ApiError } from '../lib/errors'
 import { fromBase64, sha256Hex, toBase64 } from '../lib/encoding'
-import { isValidId, newId, newSlug } from '../lib/id'
+import { isValidId, newId } from '../lib/id'
+import { insertShare } from '../lib/share-link'
 import { broadcastUserCursor } from '../lib/notify'
 import { hashPassword } from '../lib/password'
 import { consumeAttemptBudget, ThrottleError } from '../lib/throttle'
@@ -1003,24 +1004,15 @@ export async function createMcpShare(
       const passwordHash = typeof input.password === 'string' && input.password
         ? await hashPassword(input.password)
         : null
-      const written = await context.env.DB.prepare(
-        `INSERT INTO shares (slug, note_id, user_id, password_hash, expires_at, views, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6)
-         ON CONFLICT(note_id) DO UPDATE SET
-           password_hash = CASE WHEN ?7 = 1 THEN excluded.password_hash ELSE shares.password_hash END,
-           expires_at = CASE WHEN ?8 = 1 THEN excluded.expires_at ELSE shares.expires_at END
-         WHERE shares.user_id = excluded.user_id`,
-      ).bind(
-        newSlug(),
-        input.noteId,
-        context.userId,
+      const written = await insertShare(context.env.DB, {
+        noteId: input.noteId,
+        userId: context.userId,
         passwordHash,
         expiresAt,
-        Date.now(),
-        replacePassword ? 1 : 0,
-        input.expiresIn !== undefined ? 1 : 0,
-      ).run()
-      if (!written.meta.changes) throw ApiError.conflict('Share state changed')
+        replacePassword,
+        replaceExpiry: input.expiresIn !== undefined,
+      })
+      if (!written) throw ApiError.conflict('Share state changed')
       return { share: shareResult((await loadShare(context.env.DB, context.userId, input.noteId))!, context.origin) }
     },
   })

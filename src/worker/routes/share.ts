@@ -4,7 +4,8 @@ import { LIMITS } from '@shared/constants'
 import type { PublicNote, ShareInfo, ShareListItem } from '@shared/types'
 import type { AppBindings } from '../env'
 import { ApiError } from '../lib/errors'
-import { isValidSlug, newSlug } from '../lib/id'
+import { isValidSlug } from '../lib/id'
+import { insertShare } from '../lib/share-link'
 import { JSON_BODY_LIMITS, readJson, readOptionalJson, requestClientIp } from '../lib/request'
 import { hashPassword, verifyPassword } from '../lib/password'
 import {
@@ -91,7 +92,6 @@ shareManageRoutes.post('/:noteId', async (c) => {
     .first<{ id: string }>()
   if (!note) throw ApiError.notFound('Note not found')
 
-  const slug = newSlug()
   if (body.password !== undefined && body.password !== null && typeof body.password !== 'string') {
     throw ApiError.badRequest('password must be a string or null')
   }
@@ -121,26 +121,15 @@ shareManageRoutes.post('/:noteId', async (c) => {
         ? await hashPassword(body.password)
         : null
 
-  const written = await c.env.DB.prepare(
-    `INSERT INTO shares (slug, note_id, user_id, password_hash, expires_at, views, created_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6)
-     ON CONFLICT(note_id) DO UPDATE SET
-       password_hash = CASE WHEN ?7 = 1 THEN excluded.password_hash ELSE shares.password_hash END,
-       expires_at = CASE WHEN ?8 = 1 THEN excluded.expires_at ELSE shares.expires_at END
-     WHERE shares.user_id = excluded.user_id`,
-  )
-    .bind(
-      slug,
-      noteId,
-      userId,
-      passwordHash,
-      expiresAt,
-      Date.now(),
-      replacePassword ? 1 : 0,
-      body.expiresIn !== undefined ? 1 : 0,
-    )
-    .run()
-  if (!written.meta.changes) throw new ApiError(409, 'conflict', 'Share state changed. Refresh and try again')
+  const written = await insertShare(c.env.DB, {
+    noteId,
+    userId,
+    passwordHash,
+    expiresAt,
+    replacePassword,
+    replaceExpiry: body.expiresIn !== undefined,
+  })
+  if (!written) throw new ApiError(409, 'conflict', 'Share state changed. Refresh and try again')
 
   const row = await c.env.DB.prepare(`SELECT * FROM shares WHERE note_id = ?1 AND user_id = ?2`)
     .bind(noteId, userId)

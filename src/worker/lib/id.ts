@@ -19,14 +19,14 @@ export function newId(): string {
 
 
 export function newSlug(): string {
-  const bytes = new Uint8Array(20)
+  const bytes = new Uint8Array(6)
   crypto.getRandomValues(bytes)
   let out = ''
   for (let i = 0; i < bytes.length; i++) out += ALPHABET[bytes[i]! & 31]
   return out
 }
 
-const SLUG_RE = /^[0-9a-hjkmnp-tv-z]{20}$/
+const SLUG_RE = /^[0-9a-hjkmnp-tv-z]{6}$/
 export function isValidSlug(value: unknown): value is string {
   return typeof value === 'string' && SLUG_RE.test(value)
 }
