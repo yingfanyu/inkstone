@@ -437,6 +437,12 @@ async function openPlannedNote(
   return streamBytes(bytes)
 }
 
+/** application/octet-stream 只表示"类型未知"，不能当作类型声明参与校验。 */
+function isGenericMime(mime: string | null | undefined): boolean {
+  const value = (mime ?? '').trim().toLowerCase()
+  return value === '' || value === 'application/octet-stream' || value === 'binary/octet-stream'
+}
+
 async function openVerifiedAttachment(
   env: Env,
   row: AttachmentSnapshotRow,
@@ -454,7 +460,7 @@ async function openVerifiedAttachment(
     await object.body.cancel().catch(() => {})
     throw new Error(`Attachment checksum metadata does not match: ${row.filename}`)
   }
-  if (object.metadata?.mime && object.metadata.mime !== row.mime) {
+  if (object.metadata?.mime && !isGenericMime(row.mime) && object.metadata.mime !== row.mime) {
     await object.body.cancel().catch(() => {})
     throw new Error(`Attachment type metadata does not match: ${row.filename}`)
   }
@@ -492,7 +498,10 @@ function verifyAttachmentStream(
     },
     async flush() {
       if (bytes !== row.size) await fail(`Attachment size does not match: ${row.filename}`)
-      if (safeAttachmentMime(prefix, row.mime) !== row.mime) {
+      // application/octet-stream 是"未知类型"的兜底值，不构成类型声明：
+      // 客户端对 zip 等文件常常只报这个，拿它去比对真实类型必然误判。
+      // 只在实际记录了具体类型时才比对；完整性仍由下面的 sha256 兜底。
+      if (!isGenericMime(row.mime) && safeAttachmentMime(prefix, row.mime) !== row.mime) {
         await fail(`Attachment type metadata does not match: ${row.filename}`)
       }
       await digestWriter.close()
