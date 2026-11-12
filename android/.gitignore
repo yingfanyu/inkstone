@@ -1,0 +1,20 @@
+# 构建产物
+out/
+dex/
+vout/
+build/
+tem/
+*.apk
+
+# 签名材料不要入库
+inkstone.jks
+*.keystore
+*.jks
+*.pass.txt
+
+# 系统垃圾
+.DS_Store
+Thumbs.db
+
+# apksigner v4 签名副产物
+*.idsig
